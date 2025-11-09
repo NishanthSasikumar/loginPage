@@ -2,6 +2,7 @@ package com.todoListApp;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -101,9 +102,9 @@ public class App
         String name=java.net.URLDecoder.decode(split[0].split("=")[1],"UTF-8");
         String dob=java.net.URLDecoder.decode(split[1].split("=")[1],"UTF-8");
         String phoneNum=java.net.URLDecoder.decode(split[2].split("=")[1],"UTF-8");
-        String skills=java.net.URLDecoder.decode(split[3].split("=")[1],"UTF-8");
+        String primarySkills=java.net.URLDecoder.decode(split[3].split("=")[1],"UTF-8");
         String College=java.net.URLDecoder.decode(split[4].split("=")[1],"UTF-8");
-        storeUserDetails(name, dob, phoneNum, skills, College);
+        storeUserDetails("The",name, dob, phoneNum, primarySkills, College);
     }
     public static void getUserDetails(Socket socket,String body) throws IOException,SQLException
     {
@@ -117,6 +118,29 @@ public class App
             socket.getOutputStream().write(res.getBytes());
             socket.getOutputStream().flush();
         }
+        String sql="select * from userdetails where eMail==?";
+        try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
+        {
+            pSt.setString(1,eMail);
+            ResultSet rs=pSt.executeQuery();
+            String responseHtml;
+            if(rs.next())
+            {
+                String name=rs.getString("Name");
+                String Dob=rs.getString("Dob");
+                String phoneNum=rs.getString("phoneNum");
+                String Skills=rs.getString("Skills");
+                String College=rs.getString("College");
+                String fileDetails=Files.readString(Paths.get("userInfoTemplate"),StandardCharsets.UTF_8);
+                responseHtml = fileDetails.replace("{Name}",name).replace("{Dob}",Dob).replace("{phoneNum}",phoneNum).replace("{Skills}",Skills).replace("{College}",College);
+                byte[] resByteFile=responseHtml.getBytes(StandardCharsets.UTF_8);
+                String res="HTTP/1.1 200 OK"+"Content-Type: text/html"+"Content-length: "+resByteFile.length+"Connection :close\r\n\r\n";
+                socket.getOutputStream().write(res.getBytes());
+                socket.getOutputStream().write(resByteFile);
+                socket.getOutputStream().flush();
+            }   
+        }
+
     }
     public static Connection connectDB() throws IOException,SQLException
     {
@@ -135,16 +159,17 @@ public class App
             pSt.executeUpdate();
         }
     }
-    public static void storeUserDetails(String Name,String Dob,String phoneNum,String Skills,String College) throws SQLException,IOException
+    public static void storeUserDetails(String eMail,String Name,String Dob,String phoneNum,String Skills,String College) throws SQLException,IOException
     {
-        String sql="Insert values into UserDetails(Name,Dob,phoneNum,Skills,College) values(?,?,?,?,?)";
+        String sql="Insert values into userDetails(eMail,Name,Dob,phoneNum,Skills,College) values(?,?,?,?,?)";
         try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
         {
-            pSt.setString(1,Name);
-            pSt.setString(2,Dob);
-            pSt.setString(3,phoneNum);
-            pSt.setString(4,Skills);
-            pSt.setString(5,College);
+            pSt.setString(1,eMail);
+            pSt.setString(2,Name);
+            pSt.setString(3,Dob);
+            pSt.setString(4,phoneNum);
+            pSt.setString(5,Skills);
+            pSt.setString(6,College);
             pSt.executeUpdate();
         }
     }
