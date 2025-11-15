@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Login</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<main class="center-card">
+<h1>Login</h1>
+<form id="loginForm" action="/userDetails" method="POST" novalidate>
+<label>Email
+<input type="email" name="email" required placeholder="you@example.com" />
+</label>
+
+
+<label>Password
+<input type="password" name="password" required />
+</label>
+
+
+<div class="form-actions">
+<button type="submit">Login</button>
+<a class="link" href="/signup.html">Create account</a>
+</div>
+
+
+<p class="error" id="loginError" aria-live="polite"></p>
+</form>
+</main>
+
+
+<script src="scripts.js"></script>
+</body>
+</html>

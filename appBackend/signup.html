@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sign Up</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<main class="center-card">
+<h1>Create account</h1>
+<form id="signupForm" action="/signup" method="POST" novalidate>
+<label>Email
+<input type="email" name="email" required placeholder="you@example.com" />
+</label>
+
+
+<label>Password
+<input type="password" name="password" id="password" minlength="6" required placeholder="Minimum 6 characters" />
+</label>
+
+
+<label>Confirm password
+<input type="password" name="confirmPassword" id="confirmPassword" minlength="6" required />
+</label>
+
+
+<div class="form-actions">
+<button type="submit">Sign up</button>
+<a class="link" href="/loginPage">Already have an account? Login</a>
+</div>
+
+
+<p class="error" id="signupError" aria-live="polite"></p>
+</form>
+</main>
+
+
+<script src="scripts.js"></script>
+</body>
+</html>

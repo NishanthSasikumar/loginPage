@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>User Details</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<main class="center-card">
+<h1>Complete your profile</h1>
+<form id="userForm" action="/userFormDetails" method="POST" novalidate>
+<label>Full name
+<input type="text" name="name" required placeholder="John Doe" />
+</label>
+
+
+<label>Date of birth
+<input type="date" name="dob" required />
+</label>
+
+
+<label>Phone number
+<input type="tel" name="phone" pattern="[0-9+\- ]{7,20}" required placeholder="+91 98765 43210" />
+</label>
+
+
+<label>Primary skills (comma separated)
+<input type="text" name="primarySkills" required placeholder="Java, HTML, SQL" />
+</label>
+
+
+<label>College / Institution
+<input type="text" name="college" required placeholder="Your college" />
+</label>
+
+
+<div class="form-actions">
+<button type="submit">Save</button>
+</div>
+
+
+<p class="error" id="userFormError" aria-live="polite"></p>
+</form>
+</main>
+
+
+<script src="scripts.js"></script>
+</body>
+</html>

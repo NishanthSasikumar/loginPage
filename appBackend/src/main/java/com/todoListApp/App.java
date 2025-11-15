@@ -13,8 +13,12 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 public class App
 {
+    private static final Map<String,String> sessions=new ConcurrentHashMap<>();
     public static void main(String[] args) throws  IOException
     {
         int portNum=3000;
@@ -29,7 +33,7 @@ public class App
                     catch (SQLException | IOException e) {
                         e.printStackTrace();
                     }
-                });    
+                }).start();    
             }
         }
     }
@@ -42,29 +46,43 @@ public class App
                 return;
             int lenOfData=0;
             String readLen;
+            String cookies=null;
             while((readLen=in.readLine()) !=null && !readLen.isEmpty())
             {
-                if(readLen.startsWith("Content-length"))
+                if(readLen.startsWith("Content-Length"))
                 {
                     String[] tempReadLen=readLen.split(":");
                     lenOfData=Integer.parseInt(tempReadLen[1].trim());
                 }
+                else if(readLen.startsWith("Cookie:"))
+                    cookies=readLen.substring("Cookie:".length()).trim();
             }
-            char[] tempBody=new char[lenOfData];
-            in.read(tempBody);
-            String body=new String(tempBody);
+            String body="";
+            if(lenOfData!=0)
+            {
+                char[] tempBody=new char[lenOfData];
+                in.read(tempBody);
+                body=new String(tempBody);
+            }
             if(type.startsWith("GET /signup.html"))
                 getFile("signup.html",socket,"text/html");
             else if(type.startsWith("POST /signup"))
                 postSignUpInfo(socket, body);
             else if(type.startsWith("GET /userForm"))
-                getFile("UserForm",socket,"text/html");
+                getFile("UserForm.html",socket,"text/html");
             else if(type.startsWith("POST /userFormDetails"))
-                postUserFormDetails(socket,body);
+                postUserFormDetails(socket,body,cookies);
             else if(type.startsWith("GET /loginPage"))
                 getFile("login.html",socket,"text/html");
+            else if(type.startsWith("POST /userDetails"))
+                handleLogin(socket,body);
             else if(type.startsWith("GET /userDetails"))
-                getUserDetails(socket,body);
+                getUserDetails(cookies,socket);
+            else if (type.startsWith("GET /styles.css"))
+                getFile("styles.css", socket, "text/css");
+            else if (type.startsWith("GET /scripts.js"))
+                getFile("scripts.js", socket, "application/javascript");
+
         }
     }
     public static void getFile(String filename,Socket socket,String contentType) throws IOException
@@ -85,28 +103,46 @@ public class App
         if(!(passWord.equals(comparePassWord)))
         {
             String msg="Password mismatch!";
-            String response="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length:"+msg.length()+"\r\n\r\n"+msg;
+            String response="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length: "+msg.length()+"\r\n\r\n"+msg;
             socket.getOutputStream().write(response.getBytes());
             socket.getOutputStream().flush();
             return;
         }
+        else{
         storeValues(eMail, passWord);
-        String msg="login successfully";
-        String response="HTTP/1.1 200 OK\r\n"+"Content-Type: text/plain\r\n"+"Content-Length:"+msg.length()+"\r\n\r\n"+msg;
+        String sessionId=UUID.randomUUID().toString();
+        sessions.put(sessionId,eMail);
+        String response="HTTP/1.1 302 Found\r\n"+"Location: /userForm\r\n"+"Set-Cookie: sessionId="+sessionId+";HttpOnly\r\n"+"Content-Length: 0\r\n\r\n";
         socket.getOutputStream().write(response.getBytes());
-        socket.getOutputStream().flush();
+        socket.getOutputStream().flush();}
     }
-    public static void postUserFormDetails(Socket socket,String body) throws IOException,SQLException
+    public static void postUserFormDetails(Socket socket,String body,String cookies) throws IOException,SQLException
     {
-        String[] split=body.split("&");
-        String name=java.net.URLDecoder.decode(split[0].split("=")[1],"UTF-8");
-        String dob=java.net.URLDecoder.decode(split[1].split("=")[1],"UTF-8");
-        String phoneNum=java.net.URLDecoder.decode(split[2].split("=")[1],"UTF-8");
-        String primarySkills=java.net.URLDecoder.decode(split[3].split("=")[1],"UTF-8");
-        String College=java.net.URLDecoder.decode(split[4].split("=")[1],"UTF-8");
-        storeUserDetails("The",name, dob, phoneNum, primarySkills, College);
+        String Id=getCookiesValue(cookies,"sessionId");
+        if(Id!=null)
+        {
+            String eMail=sessions.get(Id);
+            String[] split=body.split("&");
+            String name=java.net.URLDecoder.decode(split[0].split("=")[1],"UTF-8");
+            String dob=java.net.URLDecoder.decode(split[1].split("=")[1],"UTF-8");
+            String phoneNum=java.net.URLDecoder.decode(split[2].split("=")[1],"UTF-8");
+            String primarySkills=java.net.URLDecoder.decode(split[3].split("=")[1],"UTF-8");
+            String College=java.net.URLDecoder.decode(split[4].split("=")[1],"UTF-8");
+            storeUserDetails(eMail,name, dob, phoneNum, primarySkills, College);
+            String res="HTTP/1.1 302 Found \r\n"+"Location: /userDetails\r\n"+"Content-Length: 0\r\n\r\n";
+            socket.getOutputStream().write(res.getBytes());
+            socket.getOutputStream().flush();
+        }
+        else
+        {
+            String mail="Signup first";
+            String res="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length: "+mail.length()+"\r\n\r\n"+mail;
+            socket.getOutputStream().write(res.getBytes());
+            socket.getOutputStream().flush();
+        }
+
     }
-    public static void getUserDetails(Socket socket,String body) throws IOException,SQLException
+    public static void handleLogin(Socket socket,String body) throws IOException,SQLException
     {
         String[] splittedstr=body.split("&");
         String eMail=java.net.URLDecoder.decode(splittedstr[0].split("=")[1],"UTF-8");
@@ -114,11 +150,38 @@ public class App
         if(!validMail(eMail,passWord))
         {
             String mail="Enter a valid details(email/password)";
-            String res="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length:"+mail.length()+"\r\n\r\n"+mail;
+            String res="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length: "+mail.length()+"\r\n\r\n"+mail;
             socket.getOutputStream().write(res.getBytes());
             socket.getOutputStream().flush();
         }
-        String sql="select * from userdetails where eMail==?";
+        else{
+        String sessionId=UUID.randomUUID().toString();
+        sessions.put(sessionId,eMail);
+        String res="HTTP/1.1 302 Found\r\n"+"Location: /userDetails\r\n"+"Set-Cookie: sessionId="+sessionId+";HttpOnly\r\n"+"Content-Length: 0\r\n\r\n";
+        socket.getOutputStream().write(res.getBytes());
+        socket.getOutputStream().flush();}
+        
+    }
+    public static String  getCookiesValue(String cookie,String name)
+    {
+        if(cookie==null)
+            return null;
+        String[] iniSplit=cookie.split(";");
+        for(int i=0;i<iniSplit.length;i++)
+        {
+            String[] temp=iniSplit[i].trim().split("=",2);
+            if(temp[0].equals(name))
+                return temp[1];
+        }
+        return null;
+
+    }
+    public static void getUserDetails(String cookies,Socket socket) throws IOException,SQLException
+    {
+        String Id=getCookiesValue(cookies,"sessionId");
+        if(Id!=null){
+        String eMail=sessions.get(Id);
+        String sql="select * from userdetails where eMail=?";
         try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
         {
             pSt.setString(1,eMail);
@@ -131,14 +194,20 @@ public class App
                 String phoneNum=rs.getString("phoneNum");
                 String Skills=rs.getString("Skills");
                 String College=rs.getString("College");
-                String fileDetails=Files.readString(Paths.get("userInfoTemplate"),StandardCharsets.UTF_8);
+                String fileDetails=Files.readString(Paths.get("userInfoTemplate.html"),StandardCharsets.UTF_8);
                 responseHtml = fileDetails.replace("{Name}",name).replace("{Dob}",Dob).replace("{phoneNum}",phoneNum).replace("{Skills}",Skills).replace("{College}",College);
                 byte[] resByteFile=responseHtml.getBytes(StandardCharsets.UTF_8);
-                String res="HTTP/1.1 200 OK"+"Content-Type: text/html"+"Content-length: "+resByteFile.length+"Connection :close\r\n\r\n";
+                String res="HTTP/1.1 200 OK\r\n"+"Content-Type: text/html\r\n"+"Content-Length: "+resByteFile.length+"\r\n\r\n";
                 socket.getOutputStream().write(res.getBytes());
                 socket.getOutputStream().write(resByteFile);
                 socket.getOutputStream().flush();
             }   
+        }}
+        else{
+            String mail="SignUp first";
+            String res="HTTP/1.1 400 Bad Request\r\n"+"Content-Type: text/plain\r\n"+"Content-Length: "+mail.length()+"\r\n\r\n"+mail;
+            socket.getOutputStream().write(res.getBytes());
+            socket.getOutputStream().flush();
         }
 
     }
@@ -151,7 +220,7 @@ public class App
     }
     public static void storeValues(String eMAil,String passWord) throws SQLException, IOException
     {
-        String sql="Insert values into loginPage(emailId,password) values(?,?)";
+        String sql="insert into loginPage(emailId,password) values(?,?)";
         try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
         {
             pSt.setString(1,eMAil);
@@ -161,7 +230,7 @@ public class App
     }
     public static void storeUserDetails(String eMail,String Name,String Dob,String phoneNum,String Skills,String College) throws SQLException,IOException
     {
-        String sql="Insert values into userDetails(eMail,Name,Dob,phoneNum,Skills,College) values(?,?,?,?,?)";
+        String sql="insert into userDetails(eMail,Name,Dob,phoneNum,Skills,College) values(?,?,?,?,?,?)";
         try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
         {
             pSt.setString(1,eMail);
@@ -175,7 +244,7 @@ public class App
     }
     public static boolean validMail(String mail,String psd) throws IOException,SQLException
     {
-        String sql="select * from loginPage where emailId==?";
+        String sql="select * from loginPage where emailId=?";
         try(Connection conn=connectDB();PreparedStatement pSt=conn.prepareStatement(sql))
         {
             pSt.setString(1, mail);
@@ -190,7 +259,9 @@ public class App
                     if(!enterKey.equals(psd))
                         return false;
             }
-            return false;
+            else 
+                return false;
+            return true;
         }
     }
 }
